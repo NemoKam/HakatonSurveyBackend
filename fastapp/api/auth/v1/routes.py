@@ -56,12 +56,15 @@ async def register(response: Response, user_schema: schemas.UserCreate, db: Asyn
 
 @router.post("/login", status_code=status.HTTP_200_OK, response_model=schemas.JwtTokenGet)
 async def login(response: Response, user_login: schemas.UserLogin, db: AsyncSession = Depends(get_db)) -> JSONResponse:
+    user: models.User = await crud.get_user_by_email(db, user_login.email)
+
+    if not user:
+        raise exceptions.NotFoundException("Account isn't registered. Please register first.")
+    
     code: models.User | None = await crud.get_code_by_user_email_and_code(db, user_login.email, user_login.code)
 
     if not code:
         raise exceptions.AuthFailedException("Incorrect code")
-
-    user: models.User = await crud.get_user_by_email(db, user_login.email)
 
     celery_tasks.delete_codes_by_email.delay(user.email)
 
